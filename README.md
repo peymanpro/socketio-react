@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Socket.IO React Public Chatroom
 
 A real-time public chatroom application built with React and Socket.IO. Features include online users list, typing indicators, join/leave notifications, and Persian time formatting.
@@ -30,3 +31,6 @@ A real-time public chatroom application built with React and Socket.IO. Features
 Start the development server: npm start
 
 
+=======
+# socketio-react-public-chatroom
+>>>>>>> e46cf949bc5d84e007d8707cbd67ed04e19769b5
