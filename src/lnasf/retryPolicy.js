@@ -16,13 +16,28 @@ const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 405, 426]);
 
 export function isRetryableFailure(reason) {
   if (!reason || typeof reason !== "object") return true;
-  const data = reason.data && typeof reason.data === "object" ? reason.data : null;
-  if (reason.retryable === false || data?.retryable === false) return false;
-  const statuses = [reason.statusCode, reason.status, data?.statusCode, data?.status];
+  const asDetails = (candidate) => candidate && typeof candidate === "object" ? candidate : null;
+  const data = asDetails(reason.data);
+  const description = asDetails(reason.description);
+  const response = asDetails(reason.response);
+  if (reason.retryable === false || data?.retryable === false || description?.retryable === false) return false;
+
+  // Socket.IO transport errors can expose HTTP status on a nested xhr/response
+  // object. Treat known permanent responses as terminal rather than retrying them.
+  const statuses = [
+    reason.statusCode, reason.status,
+    data?.statusCode, data?.status,
+    description?.statusCode, description?.status,
+    response?.statusCode, response?.status,
+  ];
   const status = statuses.find((value) => typeof value === "number");
   if (typeof status === "number" && NON_RETRYABLE_STATUS_CODES.has(status)) return false;
-  const message = typeof reason.message === "string" ? reason.message : "";
-  return !/unauthorized|unauthorised|forbidden|not authorized|invalid namespace|namespace not found/i.test(message);
+
+  const message = [reason.message, data?.message, description?.message, response?.statusText]
+    .filter((value) => typeof value === "string")
+    .join(" ");
+  if (/\b(?:status(?:\s+code)?)\s*[:'"]?\s*(400|401|403|404|405|426)\b/i.test(message)) return false;
+  return !/unauthorized|unauthorised|forbidden|not authorized|not found|bad request|method not allowed|upgrade required|invalid namespace|namespace not found/i.test(message);
 }
 
 export class RetryOutcomeModel {
