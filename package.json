@@ -12,7 +12,8 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "lint": "eslint --ext .js,.jsx --max-warnings=0 src eslint.config.js vite.config.js"
+    "lint": "eslint --ext .js,.jsx --max-warnings=0 src eslint.config.js vite.config.js",
+    "test:integration": "vitest run e2e/socketio-live.integration.test.jsx"
   },
   "browserslist": {
     "production": [

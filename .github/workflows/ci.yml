@@ -64,3 +64,30 @@ jobs:
         run: npm test
       - name: Build production bundle
         run: npm run build
+      - name: Check out the live Socket.IO backend
+        uses: actions/checkout@v7
+        with:
+          repository: peymanpro/socketio-express
+          ref: cb836080162c1d6d2ca4c3dd81332ad79bac0f96
+          path: socketio-backend
+      - name: Install backend dependencies
+        run: npm ci --prefix socketio-backend
+      - name: Start live Socket.IO backend
+        run: |
+          PORT=5000 CHAT_ALLOWED_ORIGINS=http://localhost:3000 LNASF_MODE=passive node socketio-backend/server.js > "$RUNNER_TEMP/socketio-backend.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/socketio-backend.pid"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5000/health > /dev/null; then
+              echo "Socket.IO backend is healthy."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/socketio-backend.log"
+          exit 1
+      - name: Live React-to-Express Socket.IO integration
+        env:
+          LIVE_SOCKETIO_URL: http://127.0.0.1:5000
+          VITE_SOCKET_SERVER_URL: http://127.0.0.1:5000
+          VITE_LNASF_MODE: passive
+        run: npm run test:integration
