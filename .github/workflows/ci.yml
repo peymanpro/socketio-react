@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install locked dependencies
         run: npm ci
@@ -58,7 +58,9 @@ jobs:
           }
           console.log("NPM_AUDIT_PACKAGES_REPORTED=" + Math.min(rows.length, 20) + "/" + rows.length);
           NODE
+      - name: Lint
+        run: npm run lint
       - name: Run unit tests
-        run: npm test -- --watchAll=false
+        run: npm test
       - name: Build production bundle
         run: npm run build

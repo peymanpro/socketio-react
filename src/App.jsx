@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import { normalizeMessage, normalizeUsername } from "./chatProtocol";
+import { appendRetainedMessage } from "./chatMessageHistory";
 import { AdaptiveRetryPolicy, isRetryableFailure } from "./lnasf/retryPolicy";
 import "./App.css";
 
-const SERVER_URL = process.env.REACT_APP_SOCKET_SERVER_URL || "http://localhost:5000";
-const LNASF_MODE = process.env.REACT_APP_LNASF_MODE || "passive";
+const SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || "http://localhost:5000";
+const LNASF_MODE = import.meta.env.VITE_LNASF_MODE || "passive";
 
 function App() {
   const [socket, setSocket] = useState(null);
@@ -111,11 +112,11 @@ function App() {
 
     const onWelcome = (data = {}) => {
       if (typeof data.message === "string") {
-        setMessages((previous) => [...previous, {
+        setMessages((previous) => appendRetainedMessage(previous, {
           type: "system",
           text: data.message,
           time: new Date().toLocaleTimeString("fa-IR"),
-        }]);
+      }));
       }
       setOnlineUsers(Array.isArray(data.users) ? data.users.map(normalizeUsername).filter(Boolean) : []);
       setChatError("");
@@ -124,22 +125,22 @@ function App() {
       const text = normalizeMessage(data.message);
       const sender = normalizeUsername(data.username);
       if (!text || !sender) return;
-      setMessages((previous) => [...previous, {
+      setMessages((previous) => appendRetainedMessage(previous, {
         type: "message",
         username: sender,
         text,
         time: typeof data.time === "string" ? data.time : new Date().toISOString(),
         id: typeof data.id === "string" ? data.id : `message-${Date.now()}`,
         senderId: typeof data.senderId === "string" ? data.senderId : null,
-      }]);
+      }));
     };
     const onSystemEvent = (data = {}) => {
       if (typeof data.message !== "string") return;
-      setMessages((previous) => [...previous, {
+      setMessages((previous) => appendRetainedMessage(previous, {
         type: "system",
         text: data.message,
         time: typeof data.time === "string" ? data.time : new Date().toISOString(),
-      }]);
+      }));
     };
     const onOnlineUsers = (users) => {
       setOnlineUsers(Array.isArray(users) ? users.map(normalizeUsername).filter(Boolean) : []);
