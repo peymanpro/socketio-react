@@ -69,11 +69,15 @@ test("non-retryable HTTP errors stop without training a delay failure", () => {
   expect(isRetryableFailure(new Error("Failed negotiation: Status code '404'"))).toBe(false);
   expect(isRetryableFailure(new Error("ECONNRESET"))).toBe(true);
 
-  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => 1000 });
+  let now = 1000;
+  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => now });
   policy.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 0 });
+  now = 1500;
   policy.recordNonRetryableFailure({ statusCode: 401 });
   expect(policy.getSnapshot().model.length).toBe(0);
   expect(policy.getSnapshot().lastDecision.action).toBe("stop");
+  expect(policy.getSnapshot().lastDecision.retryIndex).toBe(1);
+  expect(policy.getSnapshot().lastDecision.elapsedMilliseconds).toBe(500);
 });
 
 test("learned policy cannot remove the minimum wait from later retries", () => {
