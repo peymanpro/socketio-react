@@ -189,6 +189,11 @@ export class AdaptiveRetryPolicy {
   }
 
   recordNonRetryableFailure() {
+    // Capture episode diagnostics before reset so the stop decision stays explainable.
+    const retryIndex = this.retryCount;
+    const elapsedMilliseconds = this.episodeStartedAt === null
+      ? 0
+      : Math.max(0, this.now() - this.episodeStartedAt);
     this.pendingDelayMs = null;
     this.retryCount = 0;
     this.episodeStartedAt = null;
@@ -200,8 +205,8 @@ export class AdaptiveRetryPolicy {
       recommendedDelayMs: null,
       selectedDelayMs: null,
       reason: "The Socket.IO server rejected the connection with a non-retryable error; no delay outcome was learned.",
-      elapsedMilliseconds: 0,
-      retryIndex: this.retryCount,
+      elapsedMilliseconds,
+      retryIndex,
     };
     this.notify();
   }
