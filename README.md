@@ -64,6 +64,14 @@ npm run build
 
 The test suite covers the client-side protocol validation boundary. The production build runs the Create React App compilation and its configured ESLint checks. GitHub Actions runs tests and the production build on pushes and pull requests.
 
+## LNASF: outcome-aware reconnect policy
+
+The native JavaScript module `src/lnasf/retryPolicy.js` observes actual retry success/failure outcomes by selected delay, learns an online success rate, predicts success probability and confidence with Laplace-smoothed counts, and uses a utility penalty for longer waits. Its decision policy is separate from prediction. The Socket.IO Manager's automatic reconnection is disabled so the bounded policy can control scheduled attempts explicitly; the first connection attempt remains immediate.
+
+Configure `REACT_APP_LNASF_MODE=passive` (default), `advisory`, or `adaptive`. Passive learns without changing the schedule; Advisory exposes a recommended delay but keeps the baseline; Adaptive selects only from `[0, 2000, 5000, 10000]` when enough outcomes and a meaningful utility improvement exist. The policy allows at most four retries or 30 seconds per episode. A Retry connection action begins a new bounded episode. `LNASF` diagnostics in the UI show the current mode, observed outcomes, and last decision. Model state remains in memory for the current page.
+
+Jest tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. They do not claim a network-recovery performance gain.
+
 ## Limitations
 
 This repository is only the browser client. It does not provide a backend, authentication, authorization, message history, persistence, or rate limiting. Do not treat client-side validation as a security boundary.
