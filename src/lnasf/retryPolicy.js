@@ -12,6 +12,19 @@ export function normalizeLnasfMode(value) {
   return value === "advisory" || value === "adaptive" || value === "passive" ? value : "passive";
 }
 
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 405, 426]);
+
+export function isRetryableFailure(reason) {
+  if (!reason || typeof reason !== "object") return true;
+  const data = reason.data && typeof reason.data === "object" ? reason.data : null;
+  if (reason.retryable === false || data?.retryable === false) return false;
+  const statuses = [reason.statusCode, reason.status, data?.statusCode, data?.status];
+  const status = statuses.find((value) => typeof value === "number");
+  if (typeof status === "number" && NON_RETRYABLE_STATUS_CODES.has(status)) return false;
+  const message = typeof reason.message === "string" ? reason.message : "";
+  return !/unauthorized|unauthorised|forbidden|not authorized|invalid namespace|namespace not found/i.test(message);
+}
+
 export class RetryOutcomeModel {
   constructor() {
     this.outcomes = new Map();
@@ -104,12 +117,13 @@ export class AdaptiveRetryPolicy {
     }
 
     const prediction = this.model.predictBest();
+    const minimumAllowedDelayMs = retryIndex === 0 ? 0 : 1000;
     const observedBaseline = this.model.estimate(baselineDelayMs);
     const baselineUtility = observedBaseline && observedBaseline.attempts >= MIN_DELAY_SAMPLES
       ? observedBaseline.utility
       : 0.5 - (baselineDelayMs / MAX_DELAY_MS) * DELAY_COST_WEIGHT;
     const isMateriallyBetter = Boolean(
-      prediction && prediction.delayMs !== baselineDelayMs &&
+      prediction && prediction.delayMs >= minimumAllowedDelayMs && prediction.delayMs !== baselineDelayMs &&
       prediction.utility >= baselineUtility + MIN_UTILITY_GAIN
     );
     const recommendedDelayMs = isMateriallyBetter ? prediction.delayMs : baselineDelayMs;
@@ -156,6 +170,24 @@ export class AdaptiveRetryPolicy {
     this.terminalCount += 1;
     this.retryCount = 0;
     this.episodeStartedAt = null;
+    this.notify();
+  }
+
+  recordNonRetryableFailure() {
+    this.pendingDelayMs = null;
+    this.retryCount = 0;
+    this.episodeStartedAt = null;
+    this.terminalCount += 1;
+    this.lastDecision = {
+      mode: this.mode,
+      action: "stop",
+      baselineDelayMs: null,
+      recommendedDelayMs: null,
+      selectedDelayMs: null,
+      reason: "The Socket.IO server rejected the connection with a non-retryable error; no delay outcome was learned.",
+      elapsedMilliseconds: 0,
+      retryIndex: this.retryCount,
+    };
     this.notify();
   }
 
