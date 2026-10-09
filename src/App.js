@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import { normalizeMessage, normalizeUsername } from "./chatProtocol";
+import { AdaptiveRetryPolicy } from "./lnasf/retryPolicy";
 import "./App.css";
 
 const SERVER_URL = process.env.REACT_APP_SOCKET_SERVER_URL || "http://localhost:5000";
+const LNASF_MODE = process.env.REACT_APP_LNASF_MODE || "passive";
 
 function App() {
   const [socket, setSocket] = useState(null);
@@ -20,28 +22,79 @@ function App() {
   const typingTimeoutRef = useRef(null);
   const usernameRef = useRef("");
   const hasJoinedRef = useRef(false);
+  const reconnectTimerRef = useRef(null);
+  const retryNowRef = useRef(null);
+  const retryPolicyRef = useRef(null);
+  const everConnectedRef = useRef(false);
+  const [retryMetrics, setRetryMetrics] = useState(null);
 
   useEffect(() => {
-    const newSocket = io(SERVER_URL);
+    let alive = true;
+    const retryPolicy = new AdaptiveRetryPolicy({
+      mode: LNASF_MODE,
+      onMetricsChange: (metrics) => { if (alive) setRetryMetrics(metrics); },
+    });
+    retryPolicyRef.current = retryPolicy;
+    const newSocket = io(SERVER_URL, { autoConnect: false, reconnection: false });
     setSocket(newSocket);
 
+    const clearReconnectTimer = () => {
+      if (reconnectTimerRef.current !== null) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    };
+
+    const scheduleReconnect = () => {
+      if (!alive || reconnectTimerRef.current !== null) return;
+      const delay = retryPolicy.nextRetryDelay();
+      if (delay === null) {
+        setConnectionError("The reconnect budget is exhausted. Select Retry connection to begin a new bounded attempt window.");
+        return;
+      }
+      setConnectionError(`Connection interrupted. Next retry in ${delay} ms (LNASF ${retryPolicy.mode}).`);
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (alive) newSocket.connect();
+      }, delay);
+    };
+
+    retryNowRef.current = () => {
+      clearReconnectTimer();
+      retryPolicy.resetEpisode();
+      setConnectionError("");
+      newSocket.connect();
+    };
+
     newSocket.on("connect", () => {
+      const hadConnection = everConnectedRef.current;
+      everConnectedRef.current = true;
+      if (retryPolicy.getSnapshot().lastDecision?.selectedDelayMs !== null && retryPolicy.getSnapshot().lastDecision !== null) {
+        retryPolicy.recordSuccess();
+      } else {
+        retryPolicy.recordAbandoned();
+      }
       setIsConnected(true);
       setConnectionError("");
-      if (hasJoinedRef.current && usernameRef.current) {
-        newSocket.emit("user-join", usernameRef.current);
-      }
+      if (hasJoinedRef.current && usernameRef.current) newSocket.emit("user-join", usernameRef.current);
+      if (!hadConnection) setRetryMetrics(retryPolicy.getSnapshot());
     });
-    newSocket.on("disconnect", () => {
+    newSocket.on("disconnect", (reason) => {
       setIsConnected(false);
       setTypingUsers([]);
+      if (reason !== "io client disconnect") scheduleReconnect();
     });
     newSocket.on("connect_error", () => {
       setIsConnected(false);
-      setConnectionError("Unable to connect to the chat server. Check the server URL and try again.");
+      setConnectionError("Unable to connect to the chat server. The reconnect policy will retry within its limits.");
+      scheduleReconnect();
     });
 
+    newSocket.connect();
     return () => {
+      alive = false;
+      clearReconnectTimer();
+      retryPolicy.recordAbandoned();
+      retryPolicyRef.current = null;
+      retryNowRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       newSocket.close();
     };
@@ -195,6 +248,8 @@ function App() {
             </button>
           </form>
           {!isConnected && <p className="error">{connectionError || "Connecting to server..."}</p>}
+          {!isConnected && connectionError && <button type="button" onClick={() => retryNowRef.current?.()}>Retry connection</button>
+          {retryMetrics && <p className="lnasf-diagnostics">LNASF {retryMetrics.mode} · {retryMetrics.model.reduce((sum, item) => sum + item.attempts, 0)} retry outcomes · {retryMetrics.lastDecision?.action || "baseline"} policy</p>}
           {chatError && <p className="error" role="alert">{chatError}</p>}
         </div>
       </div>
@@ -222,6 +277,7 @@ function App() {
         <div className="chat-header">
           <h2>Public Chat</h2>
           <div className="connection-status">{isConnected ? "Online" : "Offline"}</div>
+          {retryMetrics && <small className="lnasf-diagnostics">LNASF {retryMetrics.mode} · {retryMetrics.model.reduce((sum, item) => sum + item.attempts, 0)} retry outcomes · {retryMetrics.lastDecision?.action || "baseline"}</small>}
         </div>
         {connectionError && !isConnected && <p className="error" role="status">{connectionError}</p>}
         {chatError && <p className="error" role="alert">{chatError}</p>}
