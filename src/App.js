@@ -248,7 +248,7 @@ function App() {
             </button>
           </form>
           {!isConnected && <p className="error">{connectionError || "Connecting to server..."}</p>}
-          {!isConnected && connectionError && <button type="button" onClick={() => retryNowRef.current?.()}>Retry connection</button>
+          {!isConnected && connectionError && <button type="button" onClick={() => retryNowRef.current?.()}>Retry connection</button>}
           {retryMetrics && <p className="lnasf-diagnostics">LNASF {retryMetrics.mode} · {retryMetrics.model.reduce((sum, item) => sum + item.attempts, 0)} retry outcomes · {retryMetrics.lastDecision?.action || "baseline"} policy</p>}
           {chatError && <p className="error" role="alert">{chatError}</p>}
         </div>
