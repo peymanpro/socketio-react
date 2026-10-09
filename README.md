@@ -72,6 +72,10 @@ Configure `REACT_APP_LNASF_MODE=passive` (default), `advisory`, or `adaptive`. P
 
 Jest tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. They do not claim a network-recovery performance gain.
 
+
+
+Framework context: [LNASF concept and architecture](https://github.com/peymanpro/learning-native-adaptive-software-framework) · [Technical specification](https://github.com/peymanpro/learning-native-adaptive-software-framework/blob/main/SPECIFICATION.md). This repository implements only the specific LNASF subset documented above; it is not a complete framework implementation.
+
 ## Limitations
 
 This repository is only the browser client. It does not provide a backend, authentication, authorization, message history, persistence, or rate limiting. Do not treat client-side validation as a security boundary.
