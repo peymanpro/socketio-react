@@ -13,6 +13,11 @@ export function normalizeLnasfMode(value) {
 }
 
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404, 405, 426]);
+const NON_RETRYABLE_DISCONNECT_REASONS = new Set(["io client disconnect", "io server disconnect"]);
+
+export function isRetryableDisconnectReason(reason) {
+  return !NON_RETRYABLE_DISCONNECT_REASONS.has(reason);
+}
 
 export function isRetryableFailure(reason) {
   if (!reason || typeof reason !== "object") return true;
@@ -188,7 +193,7 @@ export class AdaptiveRetryPolicy {
     this.notify();
   }
 
-  recordNonRetryableFailure() {
+  recordNonRetryableFailure(reason = "The Socket.IO server rejected the connection with a non-retryable error; no delay outcome was learned.") {
     // Capture episode diagnostics before reset so the stop decision stays explainable.
     const retryIndex = this.retryCount;
     const elapsedMilliseconds = this.episodeStartedAt === null
@@ -204,7 +209,7 @@ export class AdaptiveRetryPolicy {
       baselineDelayMs: null,
       recommendedDelayMs: null,
       selectedDelayMs: null,
-      reason: "The Socket.IO server rejected the connection with a non-retryable error; no delay outcome was learned.",
+      reason,
       elapsedMilliseconds,
       retryIndex,
     };

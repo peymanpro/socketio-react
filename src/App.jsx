@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import { normalizeMessage, normalizeUsername } from "./chatProtocol";
 import { appendRetainedMessage } from "./chatMessageHistory";
-import { AdaptiveRetryPolicy, isRetryableFailure } from "./lnasf/retryPolicy";
+import { AdaptiveRetryPolicy, isRetryableFailure, isRetryableDisconnectReason } from "./lnasf/retryPolicy";
 import "./App.css";
 
 const SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || "http://localhost:5000";
@@ -81,7 +81,13 @@ function App() {
     newSocket.on("disconnect", (reason) => {
       setIsConnected(false);
       setTypingUsers([]);
-      if (reason !== "io client disconnect") scheduleReconnect();
+      if (reason === "io server disconnect") {
+        clearReconnectTimer();
+        retryPolicy.recordNonRetryableFailure("The Socket.IO server intentionally disconnected this client; automatic retries are disabled.");
+        setConnectionError("The server intentionally disconnected this client. Select Retry connection if appropriate.");
+        return;
+      }
+      if (isRetryableDisconnectReason(reason)) scheduleReconnect();
     });
     newSocket.on("connect_error", (error) => {
       setIsConnected(false);

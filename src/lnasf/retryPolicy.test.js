@@ -1,4 +1,4 @@
-import { AdaptiveRetryPolicy, RetryOutcomeModel, isRetryableFailure } from "./retryPolicy";
+import { AdaptiveRetryPolicy, RetryOutcomeModel, isRetryableFailure, isRetryableDisconnectReason } from "./retryPolicy";
 
 test("learns actual retry outcomes and exposes confidence and utility", () => {
   const model = new RetryOutcomeModel();
@@ -88,4 +88,26 @@ test("learned policy cannot remove the minimum wait from later retries", () => {
   const policy = new AdaptiveRetryPolicy({ mode: "adaptive", model, now: () => 1000 });
   expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
   expect(policy.getSnapshot().lastDecision.action).toBe("baseline");
+});
+
+test("server-forced and client-requested disconnects do not schedule automatic reconnects", () => {
+  expect(isRetryableDisconnectReason("io server disconnect")).toBe(false);
+  expect(isRetryableDisconnectReason("io client disconnect")).toBe(false);
+  expect(isRetryableDisconnectReason("ping timeout")).toBe(true);
+  expect(isRetryableDisconnectReason("transport close")).toBe(true);
+  expect(isRetryableDisconnectReason("transport error")).toBe(true);
+});
+
+test("a server-forced disconnect is recorded as terminal without contaminating delay outcomes", () => {
+  let now = 1200;
+  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => now });
+  policy.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 0 });
+  now = 1800;
+  policy.recordNonRetryableFailure("The Socket.IO server intentionally disconnected this client; automatic retries are disabled.");
+  const snapshot = policy.getSnapshot();
+  expect(snapshot.model).toHaveLength(0);
+  expect(snapshot.measurements.terminalCount).toBe(1);
+  expect(snapshot.lastDecision.action).toBe("stop");
+  expect(snapshot.lastDecision.elapsedMilliseconds).toBe(600);
+  expect(snapshot.lastDecision.reason).toContain("intentionally disconnected");
 });
