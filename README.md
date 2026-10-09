@@ -1,36 +1,69 @@
-<<<<<<< HEAD
-# Socket.IO React Public Chatroom
+# React + Socket.IO Chat Client
 
-A real-time public chatroom application built with React and Socket.IO. Features include online users list, typing indicators, join/leave notifications, and Persian time formatting.
+A React 19 frontend for a public real-time chatroom, built with Socket.IO Client. The project focuses on a clear connection state, live presence and typing updates, defensive rendering, and reconnect behavior.
 
 ## Features
 
--  Real-time messaging with timestamps
-- Online users list with live updates
-- Join and leave system notifications
-- ⌨Typing indicators (shows when others are typing)
-- Modern and responsive UI design
-- Automatic reconnection handling
-- "You" badge for current user identification
-- Persian time format (fa-IR)
-- Built with React 19 and Socket.IO Client
+- Live messages, participant presence, join/leave notices, and typing indicators.
+- Reconnection handling that re-announces the participant after Socket.IO assigns a new connection.
+- Display-name and message validation at the UI boundary, complementing server-side validation.
+- Unique message IDs separated from the sender's socket ID.
+- Connection errors and server validation errors are shown to the user.
+- Socket event listeners and typing timers are cleaned up.
+- Persian-localized system-message time display; backend timestamps are preserved for chat messages.
 
-## Tech Stack
+## Requirements
 
-| React | 19.2.5 | Frontend framework |
-| Socket.IO Client | 4.8.3 | Real-time communication |
-| React Scripts | 5.0.1 | Build and development |
-| CSS3 | - | Styling and animations |
+- Node.js 18 or later
+- npm
+- A Socket.IO backend implementing the event contract below (for example, the companion Express or NestJS backend)
 
-## Prerequisites
+## Run locally
 
-- Node.js (v18 or higher)
-- npm or yarn package manager
-- A running Socket.IO backend server (default: `http://localhost:5000`) see my backend projects in my repos
+```bash
+npm ci
+npm start
+```
 
-Start the development server: npm start
+The client opens at `http://localhost:3000` and connects to `http://localhost:5000` by default.
 
+### Configuration
 
-=======
-# socketio-react-public-chatroom
->>>>>>> e46cf949bc5d84e007d8707cbd67ed04e19769b5
+Create `.env.local` or `.env` in the project root:
+
+```bash
+REACT_APP_SOCKET_SERVER_URL=http://localhost:5000
+```
+
+Restart the development server after changing the variable. The client must use the same origin allowed by the backend CORS configuration.
+
+## Socket.IO event contract
+
+| Direction | Event | Payload |
+| --- | --- | --- |
+| Client → server | `user-join` | `string username` |
+| Client → server | `send-message` | `{ message: string }` |
+| Client → server | `typing-start` | no payload |
+| Client → server | `typing-stop` | no payload |
+| Server → client | `welcome` | `{ message, users: string[] }` |
+| Server → client | `user-joined` | `{ username, message, time }` |
+| Server → client | `user-left` | `{ username, message, time }` |
+| Server → client | `new-message` | `{ username, message, time, id, senderId }` |
+| Server → client | `online-users` | `string[]` |
+| Server → client | `user-typing` | `{ username, isTyping }` |
+| Server → client | `chat-error` | `{ code, message }` |
+
+Names are trimmed and limited to 32 characters. Messages are trimmed and limited to 2,000 characters. Multiline message text is allowed; invalid control characters and blank messages are rejected. The server remains authoritative and must validate every event independently.
+
+## Checks
+
+```bash
+npm test -- --watchAll=false
+npm run build
+```
+
+The test suite covers the client-side protocol validation boundary. The production build runs the Create React App compilation and its configured ESLint checks. GitHub Actions runs tests and the production build on pushes and pull requests.
+
+## Limitations
+
+This repository is only the browser client. It does not provide a backend, authentication, authorization, message history, persistence, or rate limiting. Do not treat client-side validation as a security boundary.
