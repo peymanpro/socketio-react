@@ -60,6 +60,8 @@ jobs:
           NODE
       - name: Lint
         run: npm run lint
+      - name: Enforce high and critical dependency audit
+        run: npm audit --audit-level=high
       - name: Run unit tests
         run: npm test
       - name: Build production bundle

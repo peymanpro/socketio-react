@@ -80,7 +80,7 @@ Framework context: [LNASF concept and architecture](https://github.com/peymanpro
 
 ## Dependency audit status
 
-The project has migrated from the legacy Create React App `react-scripts` toolchain to Vite and Vitest. The latest verified GitHub Actions audit snapshot reported zero npm findings ([CI](https://github.com/peymanpro/socketio-react/actions/runs/37994831255)). Run `npm audit` locally for the latest advisory database; a clean snapshot is not a blanket production-readiness guarantee.
+The project has migrated from the legacy Create React App `react-scripts` toolchain to Vite and Vitest. The latest verified pre-gate GitHub Actions audit snapshot reported zero npm findings ([CI](https://github.com/peymanpro/socketio-react/actions/runs/37995967533)). CI now fails when high or critical npm audit findings are present; lower-severity findings remain visible in the report. See the [CI workflow](https://github.com/peymanpro/socketio-react/actions/workflows/ci.yml) for the enforced check. Run `npm audit` locally for the latest advisory database; a clean snapshot is not a blanket production-readiness guarantee.
 
 ## Limitations
 
