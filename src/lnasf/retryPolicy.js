@@ -30,8 +30,8 @@ export function isRetryableFailure(reason) {
     description?.statusCode, description?.status,
     response?.statusCode, response?.status,
   ];
-  const status = statuses.find((value) => typeof value === "number");
-  if (typeof status === "number" && NON_RETRYABLE_STATUS_CODES.has(status)) return false;
+  const hasNonRetryableStatus = statuses.some((value) => typeof value === "number" && NON_RETRYABLE_STATUS_CODES.has(value));
+  if (hasNonRetryableStatus) return false;
 
   const message = [reason.message, data?.message, description?.message, response?.statusText]
     .filter((value) => typeof value === "string")
