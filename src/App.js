@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import { normalizeMessage, normalizeUsername } from "./chatProtocol";
-import { AdaptiveRetryPolicy } from "./lnasf/retryPolicy";
+import { AdaptiveRetryPolicy, isRetryableFailure } from "./lnasf/retryPolicy";
 import "./App.css";
 
 const SERVER_URL = process.env.REACT_APP_SOCKET_SERVER_URL || "http://localhost:5000";
@@ -82,8 +82,14 @@ function App() {
       setTypingUsers([]);
       if (reason !== "io client disconnect") scheduleReconnect();
     });
-    newSocket.on("connect_error", () => {
+    newSocket.on("connect_error", (error) => {
       setIsConnected(false);
+      if (!isRetryableFailure(error)) {
+        clearReconnectTimer();
+        retryPolicy.recordNonRetryableFailure();
+        setConnectionError("The server rejected this connection. Check the endpoint or credentials before retrying.");
+        return;
+      }
       setConnectionError("Unable to connect to the chat server. The reconnect policy will retry within its limits.");
       scheduleReconnect();
     });
