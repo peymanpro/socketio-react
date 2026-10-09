@@ -60,19 +60,19 @@ Names are trimmed and limited to 32 characters. Messages are trimmed and limited
 ## Checks
 
 ```bash
-npm test -- --watchAll=false
+npm test
 npm run build
 ```
 
-The test suite covers protocol validation, retry-policy decisions, and message-history bounds. ESLint, Vitest, and Vite production build run in GitHub Actions on pushes and pull requests.
+The unit suite covers protocol validation, retry-policy decisions, and message-history bounds. GitHub Actions also starts the actual `socketio-express` backend and runs `npm run test:integration` with two rendered React clients over a live Socket.IO transport. The integration verifies join, typing notifications, and primary chat-message delivery; it is a real transport/component test, not a browser automation or performance benchmark.
 
 ## LNASF: outcome-aware reconnect policy
 
 The native JavaScript module `src/lnasf/retryPolicy.js` observes actual retry success/failure outcomes by selected delay, learns an online success rate, predicts success probability and confidence with Laplace-smoothed counts, and uses a utility penalty for longer waits. Its decision policy is separate from prediction. The Socket.IO Manager's automatic reconnection is disabled so the bounded policy can control scheduled attempts explicitly; the first connection attempt remains immediate.
 
-Configure `REACT_APP_LNASF_MODE=passive` (default), `advisory`, or `adaptive`. Passive learns without changing the schedule; Advisory exposes a recommended delay but keeps the baseline; Adaptive selects only from `[0, 2000, 5000, 10000]` when enough outcomes and a meaningful utility improvement exist. The policy allows at most four retries or 30 seconds per episode. A Retry connection action begins a new bounded episode. `LNASF` diagnostics in the UI show the current mode, observed outcomes, and last decision. Model state remains in memory for the current page.
+Configure `VITE_LNASF_MODE=passive` (default), `advisory`, or `adaptive`. Passive learns without changing the schedule; Advisory exposes a recommended delay but keeps the baseline; Adaptive selects only from `[0, 2000, 5000, 10000]` when enough outcomes and a meaningful utility improvement exist. The policy allows at most four retries or 30 seconds per episode. A Retry connection action begins a new bounded episode. `LNASF` diagnostics in the UI show the current mode, observed outcomes, and last decision. Model state remains in memory for the current page.
 
-Vitest tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. They do not claim a network-recovery performance gain.
+Vitest unit tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. For the live transport test, start the Express backend on port 5000 and run `LIVE_SOCKETIO_URL=http://127.0.0.1:5000 VITE_SOCKET_SERVER_URL=http://127.0.0.1:5000 npm run test:integration`. This test validates event compatibility and delivery, not reconnect-performance gain.
 
 
 
@@ -80,7 +80,7 @@ Framework context: [LNASF concept and architecture](https://github.com/peymanpro
 
 ## Dependency audit status
 
-The project has migrated from the legacy Create React App `react-scripts` toolchain to Vite and Vitest. This removes the old CRA build/test dependency tree from direct dependency management. CI records the current locked dependency audit findings; run `npm audit` locally for the up-to-date advisory report. An audit finding is not, by itself, proof of exploitability in the deployed configuration, and dependency remediation must preserve a passing build and test suite.
+The project has migrated from the legacy Create React App `react-scripts` toolchain to Vite and Vitest. The latest verified GitHub Actions audit snapshot reported zero npm findings ([CI](https://github.com/peymanpro/socketio-react/actions/runs/37994831255)). Run `npm audit` locally for the latest advisory database; a clean snapshot is not a blanket production-readiness guarantee.
 
 ## Limitations
 
