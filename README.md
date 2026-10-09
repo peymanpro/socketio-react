@@ -76,6 +76,10 @@ Jest tests use synthetic outcomes and a deterministic clock to verify learning, 
 
 Framework context: [LNASF concept and architecture](https://github.com/peymanpro/learning-native-adaptive-software-framework) · [Technical specification](https://github.com/peymanpro/learning-native-adaptive-software-framework/blob/main/SPECIFICATION.md). This repository implements only the specific LNASF subset documented above; it is not a complete framework implementation.
 
+## Dependency audit status
+
+The non-blocking npm audit snapshot from 2026-10-09 reported 94 advisories (3 critical, 74 high, 12 moderate, 5 low). The main concern is the legacy Create React App / react-scripts 5.0.1 dependency tree, including critical transitive packages. The lockfile URLs were normalized to the canonical npm registry, but this does not remediate the advisories. No force upgrade was applied; a controlled build-tool migration or reviewed dependency plan is required before production release.
+
 ## Limitations
 
 This repository is only the browser client. It does not provide a backend, authentication, authorization, message history, persistence, or rate limiting. Do not treat client-side validation as a security boundary.
