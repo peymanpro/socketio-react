@@ -1,0 +1,61 @@
+import { AdaptiveRetryPolicy, RetryOutcomeModel } from "./retryPolicy";
+
+test("learns actual retry outcomes and exposes confidence and utility", () => {
+  const model = new RetryOutcomeModel();
+  model.observe(0, true, 400);
+  model.observe(0, true, 350);
+  model.observe(0, false);
+  expect(model.estimate(0).attempts).toBe(3);
+  expect(model.estimate(0).successProbability).toBe(3 / 5);
+  expect(model.predictBest().delayMs).toBe(0);
+});
+
+test("passive mode learns a recommendation but retains the baseline", () => {
+  const model = new RetryOutcomeModel();
+  for (let index = 0; index < 8; index += 1) model.observe(0, true);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  const policy = new AdaptiveRetryPolicy({ mode: "passive", model, now: () => 1000 });
+  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
+  expect(policy.getSnapshot().lastDecision.action).toBe("baseline");
+  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(0);
+});
+
+test("advisory mode reports an alternative without applying it", () => {
+  const model = new RetryOutcomeModel();
+  for (let index = 0; index < 8; index += 1) model.observe(0, true);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  const policy = new AdaptiveRetryPolicy({ mode: "advisory", model, now: () => 1000 });
+  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
+  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(0);
+  expect(policy.getSnapshot().lastDecision.selectedDelayMs).toBe(2000);
+});
+
+test("adaptive mode selects a learned delay only when utility exceeds baseline", () => {
+  const model = new RetryOutcomeModel();
+  for (let index = 0; index < 8; index += 1) model.observe(0, true, 350);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", model, now: () => 1000 });
+  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(0);
+  expect(policy.getSnapshot().lastDecision.action).toBe("adaptive");
+});
+
+test("cold start and retry/time limits fall back or stop deterministically", () => {
+  const coldStart = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => 1000 });
+  expect(coldStart.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 0 })).toBe(0);
+  expect(coldStart.getSnapshot().lastDecision.action).toBe("baseline");
+  expect(coldStart.nextRetryDelay({ previousRetryCount: 4, elapsedMilliseconds: 1000 })).toBeNull();
+  const expired = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => 1000 });
+  expect(expired.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 30000 })).toBeNull();
+});
+
+test("failed retry and successful recovery outcomes feed the next model", () => {
+  let now = 10000;
+  const policy = new AdaptiveRetryPolicy({ mode: "passive", now: () => now });
+  policy.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 0 });
+  policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 });
+  expect(policy.getSnapshot().model[0].failures).toBe(1);
+  now += 1000;
+  policy.recordSuccess();
+  expect(policy.getSnapshot().model[1].successes).toBe(1);
+  expect(policy.getSnapshot().measurements.recoveryCount).toBe(1);
+});
