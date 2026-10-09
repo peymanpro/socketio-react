@@ -1,6 +1,6 @@
 # React + Socket.IO Chat Client
 
-A React 19 frontend for a public real-time chatroom, built with Socket.IO Client. The project focuses on a clear connection state, live presence and typing updates, defensive rendering, and reconnect behavior.
+A React 19 frontend for a public real-time chatroom, built with Socket.IO Client and Vite. It focuses on connection lifecycle, live presence and typing updates, defensive event handling, and bounded client-side state.
 
 ## Features
 
@@ -8,13 +8,14 @@ A React 19 frontend for a public real-time chatroom, built with Socket.IO Client
 - Reconnection handling that re-announces the participant after Socket.IO assigns a new connection.
 - Display-name and message validation at the UI boundary, complementing server-side validation.
 - Unique message IDs separated from the sender's socket ID.
+- Bounded in-memory message history: only the latest 1,000 chat and system messages are retained.
 - Connection errors and server validation errors are shown to the user.
 - Socket event listeners and typing timers are cleaned up.
 - Persian-localized system-message time display; backend timestamps are preserved for chat messages.
 
 ## Requirements
 
-- Node.js 18 or later
+- Node.js 22.12 or later (required by the current Vite toolchain)
 - npm
 - A Socket.IO backend implementing the event contract below (for example, the companion Express or NestJS backend)
 
@@ -25,14 +26,15 @@ npm ci
 npm start
 ```
 
-The client opens at `http://localhost:3000` and connects to `http://localhost:5000` by default.
+The Vite development server opens at `http://localhost:5173` and connects to `http://localhost:5000` by default.
 
 ### Configuration
 
 Create `.env.local` or `.env` in the project root:
 
 ```bash
-REACT_APP_SOCKET_SERVER_URL=http://localhost:5000
+VITE_SOCKET_SERVER_URL=http://localhost:5000
+VITE_LNASF_MODE=passive
 ```
 
 Restart the development server after changing the variable. The client must use the same origin allowed by the backend CORS configuration.
@@ -62,7 +64,7 @@ npm test -- --watchAll=false
 npm run build
 ```
 
-The test suite covers the client-side protocol validation boundary. The production build runs the Create React App compilation and its configured ESLint checks. GitHub Actions runs tests and the production build on pushes and pull requests.
+The test suite covers protocol validation, retry-policy decisions, and message-history bounds. ESLint, Vitest, and Vite production build run in GitHub Actions on pushes and pull requests.
 
 ## LNASF: outcome-aware reconnect policy
 
@@ -70,7 +72,7 @@ The native JavaScript module `src/lnasf/retryPolicy.js` observes actual retry su
 
 Configure `REACT_APP_LNASF_MODE=passive` (default), `advisory`, or `adaptive`. Passive learns without changing the schedule; Advisory exposes a recommended delay but keeps the baseline; Adaptive selects only from `[0, 2000, 5000, 10000]` when enough outcomes and a meaningful utility improvement exist. The policy allows at most four retries or 30 seconds per episode. A Retry connection action begins a new bounded episode. `LNASF` diagnostics in the UI show the current mode, observed outcomes, and last decision. Model state remains in memory for the current page.
 
-Jest tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. They do not claim a network-recovery performance gain.
+Vitest tests use synthetic outcomes and a deterministic clock to verify learning, mode separation, decision thresholds, feedback, and retry limits. They do not claim a network-recovery performance gain.
 
 
 
@@ -78,7 +80,7 @@ Framework context: [LNASF concept and architecture](https://github.com/peymanpro
 
 ## Dependency audit status
 
-The non-blocking npm audit snapshot from 2026-10-09 reported 94 advisories (3 critical, 74 high, 12 moderate, 5 low). The main concern is the legacy Create React App / react-scripts 5.0.1 dependency tree, including critical transitive packages. The lockfile URLs were normalized to the canonical npm registry, but this does not remediate the advisories. No force upgrade was applied; a controlled build-tool migration or reviewed dependency plan is required before production release.
+The project has migrated from the legacy Create React App `react-scripts` toolchain to Vite and Vitest. This removes the old CRA build/test dependency tree from direct dependency management. CI records the current locked dependency audit findings; run `npm audit` locally for the up-to-date advisory report. An audit finding is not, by itself, proof of exploitability in the deployed configuration, and dependency remediation must preserve a passing build and test suite.
 
 ## Limitations
 
