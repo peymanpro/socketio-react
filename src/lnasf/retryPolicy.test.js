@@ -64,6 +64,9 @@ test("non-retryable HTTP errors stop without training a delay failure", () => {
   expect(isRetryableFailure({ statusCode: 401, message: "Unauthorized" })).toBe(false);
   expect(isRetryableFailure({ data: { status: 403 } })).toBe(false);
   expect(isRetryableFailure({ statusCode: 503, message: "Service unavailable" })).toBe(true);
+  expect(isRetryableFailure({ description: { status: 404 }, message: "Transport failed" })).toBe(false);
+  expect(isRetryableFailure({ response: { status: 503 } })).toBe(true);
+  expect(isRetryableFailure(new Error("Failed negotiation: Status code '404'"))).toBe(false);
   expect(isRetryableFailure(new Error("ECONNRESET"))).toBe(true);
 
   const policy = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => 1000 });
