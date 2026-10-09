@@ -280,6 +280,7 @@ function App() {
           {retryMetrics && <small className="lnasf-diagnostics">LNASF {retryMetrics.mode} · {retryMetrics.model.reduce((sum, item) => sum + item.attempts, 0)} retry outcomes · {retryMetrics.lastDecision?.action || "baseline"}</small>}
         </div>
         {connectionError && !isConnected && <p className="error" role="status">{connectionError}</p>}
+        {connectionError && !isConnected && <button type="button" onClick={() => retryNowRef.current?.()}>Retry connection</button>}
         {chatError && <p className="error" role="alert">{chatError}</p>}
 
         <div className="messages-area">
