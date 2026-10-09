@@ -1,4 +1,4 @@
-import { AdaptiveRetryPolicy, RetryOutcomeModel } from "./retryPolicy";
+import { AdaptiveRetryPolicy, RetryOutcomeModel, isRetryableFailure } from "./retryPolicy";
 
 test("learns actual retry outcomes and exposes confidence and utility", () => {
   const model = new RetryOutcomeModel();
@@ -12,30 +12,30 @@ test("learns actual retry outcomes and exposes confidence and utility", () => {
 
 test("passive mode learns a recommendation but retains the baseline", () => {
   const model = new RetryOutcomeModel();
-  for (let index = 0; index < 8; index += 1) model.observe(0, true);
-  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, true);
+  for (let index = 0; index < 8; index += 1) model.observe(5000, false);
   const policy = new AdaptiveRetryPolicy({ mode: "passive", model, now: () => 1000 });
-  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
+  expect(policy.nextRetryDelay({ previousRetryCount: 2, elapsedMilliseconds: 1000 })).toBe(5000);
   expect(policy.getSnapshot().lastDecision.action).toBe("baseline");
-  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(0);
+  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(2000);
 });
 
 test("advisory mode reports an alternative without applying it", () => {
   const model = new RetryOutcomeModel();
-  for (let index = 0; index < 8; index += 1) model.observe(0, true);
-  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, true);
+  for (let index = 0; index < 8; index += 1) model.observe(5000, false);
   const policy = new AdaptiveRetryPolicy({ mode: "advisory", model, now: () => 1000 });
-  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
-  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(0);
-  expect(policy.getSnapshot().lastDecision.selectedDelayMs).toBe(2000);
+  expect(policy.nextRetryDelay({ previousRetryCount: 2, elapsedMilliseconds: 1000 })).toBe(5000);
+  expect(policy.getSnapshot().lastDecision.recommendedDelayMs).toBe(2000);
+  expect(policy.getSnapshot().lastDecision.selectedDelayMs).toBe(5000);
 });
 
 test("adaptive mode selects a learned delay only when utility exceeds baseline", () => {
   const model = new RetryOutcomeModel();
-  for (let index = 0; index < 8; index += 1) model.observe(0, true, 350);
-  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, true, 350);
+  for (let index = 0; index < 8; index += 1) model.observe(5000, false);
   const policy = new AdaptiveRetryPolicy({ mode: "adaptive", model, now: () => 1000 });
-  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(0);
+  expect(policy.nextRetryDelay({ previousRetryCount: 2, elapsedMilliseconds: 1000 })).toBe(2000);
   expect(policy.getSnapshot().lastDecision.action).toBe("adaptive");
 });
 
@@ -58,4 +58,26 @@ test("failed retry and successful recovery outcomes feed the next model", () => 
   policy.recordSuccess();
   expect(policy.getSnapshot().model[1].successes).toBe(1);
   expect(policy.getSnapshot().measurements.recoveryCount).toBe(1);
+});
+
+test("non-retryable HTTP errors stop without training a delay failure", () => {
+  expect(isRetryableFailure({ statusCode: 401, message: "Unauthorized" })).toBe(false);
+  expect(isRetryableFailure({ data: { status: 403 } })).toBe(false);
+  expect(isRetryableFailure({ statusCode: 503, message: "Service unavailable" })).toBe(true);
+  expect(isRetryableFailure(new Error("ECONNRESET"))).toBe(true);
+
+  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", now: () => 1000 });
+  policy.nextRetryDelay({ previousRetryCount: 0, elapsedMilliseconds: 0 });
+  policy.recordNonRetryableFailure({ statusCode: 401 });
+  expect(policy.getSnapshot().model.length).toBe(0);
+  expect(policy.getSnapshot().lastDecision.action).toBe("stop");
+});
+
+test("learned policy cannot remove the minimum wait from later retries", () => {
+  const model = new RetryOutcomeModel();
+  for (let index = 0; index < 8; index += 1) model.observe(0, true);
+  for (let index = 0; index < 8; index += 1) model.observe(2000, false);
+  const policy = new AdaptiveRetryPolicy({ mode: "adaptive", model, now: () => 1000 });
+  expect(policy.nextRetryDelay({ previousRetryCount: 1, elapsedMilliseconds: 1000 })).toBe(2000);
+  expect(policy.getSnapshot().lastDecision.action).toBe("baseline");
 });
